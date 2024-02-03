@@ -315,9 +315,9 @@ def link_detection_result():
     except Exception as e:
         return f"Error handling link detection result: {e}", 500
 
-@app.route('/')
-def index():
-    return render_template('index.html')
+# @app.route('/')
+# def index():
+#     return render_template('index.html')
 
 
 @socketio.on('play')
