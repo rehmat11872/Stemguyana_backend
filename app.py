@@ -50,7 +50,7 @@ class TextToSpeechApp:
                 for page_number in range(doc.page_count):
                     page = doc[page_number]
                     text += page.get_text()
-
+                os.remove(self.pdf_path)
                 return text
             except Exception as e:
                 print(f"Error extracting text from PDF: {e}")
@@ -119,11 +119,6 @@ class TextToSpeechApp:
                         audio_data = self.generate_openai_tts(sentence)
                         socketio.emit('audio_chunk', {'audio_data': audio_data})
 
-                        # Emit an event for text highlighting
-                        start_position = 0  # Start highlighting from the beginning of the sentence
-                        end_position = len(sentence)  # End highlighting at the end of the sentence
-                        socketio.emit('highlight_text', {'start': start_position, 'end': end_position})
-
 
                         # Calculate sleep time based on the length of the audio_data and speech speed
                         sleep_time = len(audio_data) / (18000 * self.speech_speed)  # Adjusted for speed factor
@@ -141,10 +136,6 @@ class TextToSpeechApp:
                     audio_data = self.generate_openai_tts(sentence)
                     socketio.emit('audio_chunk', {'audio_data': audio_data})
 
-                    # Emit an event for text highlighting
-                    start_position = 0  # Start highlighting from the beginning of the sentence
-                    end_position = len(sentence)  # End highlighting at the end of the sentence
-                    socketio.emit('highlight_text', {'start': start_position, 'end': end_position})
 
                     # Calculate sleep time based on the length of the audio_data and speech speed
                     sleep_time = len(audio_data) / (18000 * self.speech_speed)  # Adjusted for speed factor
@@ -241,7 +232,7 @@ class TextToSpeechApp:
 
             data = {
                 'messages': [
-                    {"role": "system", "content": "You are a school teacher."},
+                    {"role": "system", "content": "you are a tutor. Please read questions and help students determine answers one question at a time."},
                     {"role": "user", "content": prompt}
                 ],
                 'model': 'gpt-3.5-turbo',
@@ -293,9 +284,17 @@ def set_pdf_path():
         if response.status_code == 200:
             pdf_content = response.content
             # print(pdf_content)
+            folder_path = 'pdf_files'
+            os.makedirs(folder_path, exist_ok=True)
 
-            with open('paras.pdf', 'wb') as pdf_file:
+            # Assuming you want to use the last saved PDF ID as the filename
+            pdf_file_path = os.path.join(folder_path, f"new_pdf.pdf")
+            print(pdf_file_path, 'pdf_file_path')
+
+            # Write the PDF content to the file
+            with open(pdf_file_path, 'wb') as pdf_file:
                 pdf_file.write(pdf_content)
+
 
             return jsonify({'message': 'PDF path set successfully'}), 200
         else:
@@ -304,14 +303,6 @@ def set_pdf_path():
     except requests.exceptions.RequestException as e:
         return jsonify({'error': f"Error fetching PDF: {e}"}), 500
     
-@socketio.on('highlight_text')
-def handle_highlight_text(data):
-    try:
-        start_position = data.get('start')
-        end_position = data.get('end')
-        socketio.emit('highlight_text', {'start': start_position, 'end': end_position})
-    except Exception as e:
-        print(f"Error handling highlight_text event: {e}")
 
 
 @app.route('/link_detection_result', methods=['POST'])
@@ -387,6 +378,7 @@ def handle_submit_question(data):
         print(f"Error handling submitQuestion event: {e}")
 
 if __name__ == "__main__":
-    text_to_speech_app = TextToSpeechApp(pdf_path='paras.pdf')
+    pdf_path = 'pdf_files/new_pdf.pdf'
+    text_to_speech_app = TextToSpeechApp(pdf_path)
     # Use the environment variable for the OpenAI API key
     app.run(host='localhost', port=5000, threaded=True, debug=True)
