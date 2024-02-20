@@ -1,3 +1,5 @@
+import eventlet
+# eventlet.monkey_patch()
 import openai
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
@@ -5,11 +7,12 @@ from flask_socketio import SocketIO
 import fitz  # PyMuPDF
 import requests
 from dotenv import load_dotenv
-from nltk.tokenize import sent_tokenize
+# from nltk.tokenize import sent_tokenize
 import time
 import threading
 import re
 import os
+
 
 # Load environment variables from .env file
 load_dotenv()
@@ -23,7 +26,8 @@ openai.api_key = OPENAI_API_KEY
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading', logger=True, engineio_logger=True)
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
+# socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading', logger=True, engineio_logger=True)
 
 
 class TextToSpeechApp:
@@ -75,12 +79,12 @@ class TextToSpeechApp:
             (sentence.startswith(tuple(question_starters)) and not sentence.endswith('!') and not any(word in sentence for word in exclude_words))
         )
 
-    def play_text_to_speech(self):
-        self.sentences = sent_tokenize(self.extract_text_from_pdf())
-        self.is_paused = False
-        self.current_sentence_index = 0
-        socketio.emit('status', {'status': 'playing'})
-        self.play_audio_chunk()
+    # def play_text_to_speech(self):
+    #     self.sentences = sent_tokenize(self.extract_text_from_pdf())
+    #     self.is_paused = False
+    #     self.current_sentence_index = 0
+    #     socketio.emit('status', {'status': 'playing'})
+    #     self.play_audio_chunk()
 
     def pause_text_to_speech(self):
         self.is_paused = True
@@ -109,7 +113,7 @@ class TextToSpeechApp:
 
                     # Wait for the callback to be triggered
                     while self.resume_callback is not None:
-                        time.sleep(0.1)  # Adjust the sleep time as needed
+                        eventlet.sleep(0.1)  # Adjust the sleep time as needed
 
                     if self.is_paused:
                         # The client handled the link detection and paused the speech
@@ -122,7 +126,7 @@ class TextToSpeechApp:
 
                         # Calculate sleep time based on the length of the audio_data and speech speed
                         sleep_time = len(audio_data) / (18000 * self.speech_speed)  # Adjusted for speed factor
-                        time.sleep(sleep_time)
+                        eventlet.sleep(sleep_time)
 
                         self.current_sentence_index += 1
 
@@ -140,7 +144,7 @@ class TextToSpeechApp:
                     # Calculate sleep time based on the length of the audio_data and speech speed
                     sleep_time = len(audio_data) / (18000 * self.speech_speed)  # Adjusted for speed factor
                     # sleep_time = 0.1 / self.speech_speed
-                    time.sleep(sleep_time)
+                    eventlet.sleep(sleep_time)
 
                     self.current_sentence_index += 1
 
@@ -315,9 +319,6 @@ def link_detection_result():
     except Exception as e:
         return f"Error handling link detection result: {e}", 500
 
-# @app.route('/')
-# def index():
-#     return render_template('index.html')
 
 
 @socketio.on('play')
@@ -325,8 +326,12 @@ def handle_play():
     print('Working')
     try:
         text_to_speech_app.play_text_to_speech()
+        print('Play event received')
     except Exception as e:
         print(f"Error handling play event: {e}")
+
+
+
 
 @socketio.on('pause')
 def handle_pause():
@@ -377,8 +382,16 @@ def handle_submit_question(data):
     except Exception as e:
         print(f"Error handling submitQuestion event: {e}")
 
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+
 if __name__ == "__main__":
+    # pdf_path = 'test1.pdf'
     pdf_path = 'pdf_files/new_pdf.pdf'
     text_to_speech_app = TextToSpeechApp(pdf_path)
     # Use the environment variable for the OpenAI API key
-    app.run(host='localhost', port=5000, threaded=True, debug=True)
+    # eventlet.monkey_patch()
+    socketio.run(app, host='0.0.0.0', port=5000)  
+    # app.run(host='0.0.0.0', port=5000, threaded=True, debug=True) 
